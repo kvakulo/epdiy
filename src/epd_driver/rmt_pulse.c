@@ -12,12 +12,12 @@ static rmt_config_t row_rmt_config;
 // keep track of wether the current pulse is ongoing
 volatile bool rmt_tx_done = true;
 
-/**
- * Remote peripheral interrupt. Used to signal when transmission is done.
- */
-static void IRAM_ATTR rmt_interrupt_handler(void *arg) {
-  rmt_tx_done = true;
-  RMT.int_clr.val = RMT.int_st.val;
+// Callback function used to signal when transmission is done.
+static void on_rmt_tx_end(rmt_channel_t channel, void *arg)
+{
+    if (channel == RMT_CHANNEL_1) {
+      rmt_tx_done = true;
+    }
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -49,11 +49,12 @@ void rmt_pulse_init(gpio_num_t pin) {
   #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 2, 0) && ESP_IDF_VERSION > ESP_IDF_VERSION_VAL(4, 0, 2)
     #error "This driver is not compatible with IDF version 4.1.\nPlease use 4.0 or >= 4.2!"
   #endif
-  esp_intr_alloc(ETS_RMT_INTR_SOURCE, ESP_INTR_FLAG_LEVEL3,
-                 rmt_interrupt_handler, 0, &gRMT_intr_handle);
 
   rmt_config(&row_rmt_config);
   rmt_set_tx_intr_en(row_rmt_config.channel, true);
+
+  rmt_driver_install(row_rmt_config.channel, 0, 0);
+  rmt_register_tx_end_callback(on_rmt_tx_end, NULL);
 }
 
 void IRAM_ATTR pulse_ckv_ticks(uint16_t high_time_ticks,
